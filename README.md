@@ -574,3 +574,257 @@ function Profile() {
   return <div>hello {data.name}!</div>;
 }
 ```
+
+## Dynamic Routes
+
+In the case where each page path depends on external data. Next.js allows you to statically generate pages with paths that depend on external data. This enables dynamic URLs in Next.js.
+
+![Page Path Data](/img/page-path-external-data.png "Page Path Data")
+
+### How to Statically Generate Pages with Dynamic Routes
+
+- First, we’ll create a page called **_[id].js_** under **_pages/posts_**. Pages that begin with [ and end with ] are dynamic routes in Next.js.
+
+- Export an async function called getStaticPaths from this page. In this function, we need to return a list of possible values for id.
+
+```javascript
+import Layout from "../../components/layout";
+
+export default function Post() {
+  return <Layout>...</Layout>;
+}
+
+export async function getStaticPaths() {
+  // Return a list of possible value for id
+}
+```
+
+- Finally, we need to implement **_getStaticProps_** again - this time, to fetch necessary data for the blog post with a given id. **_getStaticProps_** is given params, which contains id (because the file name is [id].js).
+
+```javascript
+import Layout from "../../components/layout";
+
+export default function Post() {
+  return <Layout>...</Layout>;
+}
+
+export async function getStaticPaths() {
+  // Return a list of possible value for id
+}
+
+export async function getStaticProps({ params }) {
+  // Fetch necessary data for the blog post using params.id
+}
+```
+
+![How to Dynamic Routes](/img/how-to-dynamic-routes.png "How to Dynamic Routes")
+
+### Implement getStaticPaths
+
+```javascript
+// lib/posts.js
+
+// It will return the list of file names (excluding .md) in the posts directory
+export function getAllPostIds() {
+  const fileNames = fs.readdirSync(postsDirectory);
+
+  // Returns an array that looks like this:
+  // [
+  //   {
+  //     params: {
+  //       id: 'ssg-ssr'
+  //     }
+  //   },
+  //   {
+  //     params: {
+  //       id: 'pre-rendering'
+  //     }
+  //   }
+  // ]
+  // It must be an array of objects, Each object must have the params key and contain an object with the id key
+  return fileNames.map((fileName) => {
+    return {
+      params: {
+        id: fileName.replace(/\.md$/, ""),
+      },
+    };
+  });
+}
+```
+
+```javascript
+// pages/posts/[id].js
+
+import { getAllPostIds } from "../../lib/posts";
+
+export async function getStaticPaths() {
+  const paths = getAllPostIds();
+  // Example: [ { params: { id: 'pre-rendering' } }, { params: { id: 'ssg-ssr' } } ]
+  return {
+    paths,
+    fallback: false,
+  };
+}
+```
+
+### Render Markdown
+
+To render markdown content, we’ll use the remark library
+
+```bash
+npm install remark remark-html
+```
+
+### Implement getStaticProps
+
+```javascript
+// lib/posts.js
+import { remark } from "remark";
+import html from "remark-html";
+
+export function getPostData(id) {
+  const fullPath = path.join(postsDirectory, `${id}.md`);
+  const fileContents = fs.readFileSync(fullPath, "utf8");
+
+  // Use gray-matter to parse the post metadata section
+  const matterResult = matter(fileContents);
+
+  // Use remark to convert markdown into HTML string
+  const processedContent = await remark()
+    .use(html)
+    .process(matterResult.content);
+  const contentHtml = processedContent.toString();
+
+  // Combine the data with the id
+  return {
+    id,
+    ...matterResult.data,
+  };
+}
+```
+
+```javascript
+// pages/posts/[id].js
+import Head from "next/head";
+import Date from "../../components/date";
+import Layout from "../../components/layout";
+import { getAllPostIds, getPostData } from "../../lib/posts";
+import utilStyles from "../../styles/utils.module.css";
+
+export default function Post({ postData }) {
+  return (
+    <Layout>
+      <Head>
+        <title>{postData.title}</title>
+      </Head>
+
+      <article>
+        <h1 className={utilStyles.headingXl}>{postData.title}</h1>
+        <div className={utilStyles.lightText}>
+          <Date dateString={postData.date} />
+        </div>
+        {/* To render contentHtml using dangerouslySetInnerHTML: */}
+        <div dangerouslySetInnerHTML={{ __html: postData.contentHtml }} />
+      </article>
+    </Layout>
+  );
+}
+
+// The post page is now using the getPostData function in getStaticProps to get the post data and return it as props.
+export async function getStaticProps({ params }) {
+  const postData = await getPostData(params.id);
+  return {
+    props: {
+      postData,
+    },
+  };
+}
+```
+
+### Summary
+
+Graphical summary.
+
+![Summary Dynamic Routes](/img/summary-dynamic-routes.png "Summary Dynamic Routes")
+
+### Dynamic Routes Details
+
+### Fetch External API or Query Database
+
+Like getStaticProps, **_getStaticPaths_** can fetch data from any data source. In our example, **_getAllPostIds_** (which is used by **_getStaticPaths_**) may fetch from an external API endpoint:
+
+```javascript
+export async function getAllPostIds() {
+  // Instead of the file system,
+  // fetch post data from an external API endpoint
+  const res = await fetch("..");
+  const posts = await res.json();
+  return posts.map((post) => {
+    return {
+      params: {
+        id: post.id,
+      },
+    };
+  });
+}
+```
+
+### Development vs Production
+
+- In development (npm run dev or yarn dev), getStaticPaths runs on every request.
+- In production, getStaticPaths runs at build time.
+
+### Fallback
+
+Recall that we returned **_fallback: false_** from **_getStaticPaths_**. What does this mean?
+
+If **_fallback is false_**, then any paths not returned by **_getStaticPaths_** will result in a 404 page.
+
+If **_fallback is true_**, then the behavior of **_getStaticProps_** changes:
+
+- The paths returned from **_getStaticPaths_** will be rendered to HTML at build time.
+- The paths that have not been generated at build time will **not** result in a 404 page. Instead, Next.js will serve a “fallback” version of the page on the first request to such a path.
+- In the background, Next.js will statically generate the requested path. Subsequent requests to the same path will serve the generated page, just like other pages pre-rendered at build time.
+
+If **_fallback is blocking_**, then new paths will be server-side rendered with getStaticProps, and cached for future requests so it only happens once per path.
+
+To learn more about **_fallback: true_** and **_fallback: 'blocking'_** in the [fallback documentation.](https://nextjs.org/docs/basic-features/data-fetching#the-fallback-key-required)
+
+### Catch-all Routes
+
+Dynamic routes can be extended to catch all paths by adding three dots (...) inside the brackets. For example:
+
+- **_pages/posts/[...id].js_** matches /posts/a, but also /posts/a/b, /posts/a/b/c and so on.
+
+If you do this, in **_getStaticPaths_**, you must return an array as the value of the id key like so:
+
+```javascript
+return [
+  {
+    params: {
+      // Statically Generates /posts/a/b/c
+      id: ["a", "b", "c"],
+    },
+  },
+  //...
+];
+```
+
+And **_params.id_** will be an array in **_getStaticProps_**:
+
+```javascript
+export async function getStaticProps({ params }) {
+  // params.id will be like ['a', 'b', 'c']
+}
+```
+
+### 404 Pages
+
+To create a [custom 404 page](https://nextjs.org/docs/advanced-features/custom-error-page#404-page), create **_pages/404.js_**. This file is statically generated at build time.
+
+```javascript
+// pages/404.js
+export default function Custom404() {
+  return <h1>404 - Page Not Found</h1>;
+}
+```
