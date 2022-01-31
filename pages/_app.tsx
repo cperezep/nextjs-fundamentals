@@ -4,8 +4,11 @@ But if you want some CSS to be loaded by every page, Next.js has support for tha
 
 To load global CSS files, create a file called pages/_app.js and import it.
 */
+import { AppProps } from "next/app";
 import "../styles/global.css";
 
-export default function App({ Component, pageProps }) {
+function App({ Component, pageProps }: AppProps) {
   return <Component {...pageProps} />;
 }
+
+export default App;

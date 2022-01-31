@@ -1,14 +1,19 @@
 // Important: To use CSS Modules, the CSS file name must end with .module.css.
 import Head from "next/head";
 import Image from "next/image";
-import styles from "./Layout.module.css";
+import styles from "./layout.module.css";
 import utilStyles from "../styles/utils.module.css";
 import Link from "next/link";
 
 const name = "Cristian";
 export const siteTitle = "Next.js Website";
 
-export default function Layout({ children, home }) {
+type LayoutProps = {
+  children: React.ReactNode;
+  home?: boolean;
+};
+
+function Layout({ children, home }: LayoutProps) {
   return (
     <div className={styles.container}>
       <Head>
@@ -72,3 +77,5 @@ export default function Layout({ children, home }) {
     </div>
   );
 }
+
+export default Layout;

@@ -1,10 +1,19 @@
+import { GetStaticProps, GetStaticPaths } from "next";
 import Head from "next/head";
 import Date from "../../components/date";
 import Layout from "../../components/layout";
 import { getAllPostIds, getPostData } from "../../lib/posts";
 import utilStyles from "../../styles/utils.module.css";
 
-export default function Post({ postData }) {
+type PostProps = {
+  postData: {
+    title: string;
+    date: string;
+    contentHtml: string;
+  };
+};
+
+function Post({ postData }: PostProps) {
   return (
     <Layout>
       <Head>
@@ -24,20 +33,22 @@ export default function Post({ postData }) {
 }
 
 // The post page is now using the getPostData function in getStaticProps to get the post data and return it as props.
-export async function getStaticProps({ params }) {
-  const postData = await getPostData(params.id);
+export const getStaticProps: GetStaticProps = async ({ params }) => {
+  const postData = await getPostData(params.id as string);
   return {
     props: {
       postData,
     },
   };
-}
+};
 
-export async function getStaticPaths() {
+export const getStaticPaths: GetStaticPaths = async () => {
   const paths = getAllPostIds();
   // [ { params: { id: 'pre-rendering' } }, { params: { id: 'ssg-ssr' } } ]
   return {
     paths,
     fallback: false,
   };
-}
+};
+
+export default Post;
